@@ -89,10 +89,10 @@ namespace SignupSheet
             };
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "matchid", HeaderText = "Match ID", ReadOnly = true });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "date", HeaderText = "Date", ReadOnly = true });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player1", HeaderText = "Player 1" });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player2", HeaderText = "Player 2" });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player3", HeaderText = "Player 3" });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player4", HeaderText = "Player 4" });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player1", HeaderText = "Player 1", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player2", HeaderText = "Player 2", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player3", HeaderText = "Player 3", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player4", HeaderText = "Player 4", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
             dgv.Columns.Add(new DataGridViewButtonColumn { Name = "playedBtn", HeaderText = "Played", Text = "Played", UseColumnTextForButtonValue = true });
             dgv.Columns["date"].Visible = false; // Hide the date column
             dgv.Columns["matchid"].ReadOnly = true; // Ensure matchid is always read-only
