@@ -9,7 +9,16 @@ namespace SignupSheet
         private DataGridView dgv;
         private Button btnAddMatch;
         private Button btnClear;
-        private Button btnClearPlayed; // Add this field to your class
+        private Button btnClearPlayed;
+        private ComboBox cmbLocation; // Add ComboBox for location
+
+        private readonly string[] Locations = new[]
+        {
+            "Thousand Oaks Community Center",
+            "Borchard Community Center",
+            "Dos Vientos Community Center",
+            "Sycamore Canyon School Gym"
+        };
 
         public Form1()
         {
@@ -17,12 +26,11 @@ namespace SignupSheet
             connectionString = $"Data Source={dbPath}";
             InitializeDatabase();
             InitializeUI();
-            LoadMatches();
+            // Do not load matches until a location is selected
         }
 
         private void InitializeDatabase()
         {
-            // If schema is wrong, drop and recreate table (for dev/demo only)
             using var conn = new SqliteConnection(connectionString);
             conn.Open();
             string checkSql = "PRAGMA table_info(Matches);";
@@ -33,6 +41,7 @@ namespace SignupSheet
                 bool hasPlayedTimestamp = false;
                 bool hasClearedTimestamp = false;
                 bool hasMatchNumber = false;
+                bool hasLocation = false;
                 while (reader.Read())
                 {
                     if (reader["name"].ToString() == "matchid" && reader["type"].ToString().ToUpper() != "INTEGER")
@@ -45,15 +54,15 @@ namespace SignupSheet
                         hasClearedTimestamp = true;
                     if (reader["name"].ToString() == "matchnumber")
                         hasMatchNumber = true;
+                    if (reader["name"].ToString() == "Location")
+                        hasLocation = true;
                 }
-
-                if (needsRecreate || !hasPlayedTimestamp || !hasClearedTimestamp || !hasMatchNumber)
+                if (needsRecreate || !hasPlayedTimestamp || !hasClearedTimestamp || !hasMatchNumber || !hasLocation)
                 {
                     using var dropCmd = new SqliteCommand("DROP TABLE IF EXISTS Matches;", conn);
                     dropCmd.ExecuteNonQuery();
                 }
             }
-
             string sql = @"CREATE TABLE IF NOT EXISTS Matches (
                 matchid INTEGER PRIMARY KEY AUTOINCREMENT,
                 date DATE NOT NULL,
@@ -69,48 +78,61 @@ namespace SignupSheet
                 played INTEGER,
                 playedtimestamp TEXT,
                 cleared INTEGER,
-                clearedtimestamp TEXT
+                clearedtimestamp TEXT,
+                Location TEXT NOT NULL
             );";
-
             using var cmd = new SqliteCommand(sql, conn);
             cmd.ExecuteNonQuery();
         }
 
         private void InitializeUI()
         {
-            dgv = new DataGridView
+            // Label for location
+            var lblLocation = new Label
+            {
+                Text = "Location: ",
+                AutoSize = true,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Margin = new Padding(0, 6, 8, 0) // right margin for spacing
+            };
+
+            // ComboBox for location selection
+            cmbLocation = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Height = 30,
+                Margin = new Padding(0, 4, 0, 0)
+            };
+            cmbLocation.Items.AddRange(Locations);
+            cmbLocation.SelectedIndexChanged += CmbLocation_SelectedIndexChanged;
+
+            // Calculate width for ComboBox based on longest location name
+            using (var g = cmbLocation.CreateGraphics())
+            {
+                int maxWidth = 0;
+                foreach (string loc in Locations)
+                {
+                    int w = (int)g.MeasureString(loc, cmbLocation.Font).Width;
+                    if (w > maxWidth) maxWidth = w;
+                }
+                cmbLocation.Width = maxWidth + SystemInformation.VerticalScrollBarWidth + 30;
+                cmbLocation.DropDownWidth = cmbLocation.Width;
+            }
+
+            // FlowLayoutPanel for label and ComboBox
+            var locationPanel = new FlowLayoutPanel
             {
                 Dock = DockStyle.Top,
-                Height = 300,
-                AllowUserToAddRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                MultiSelect = false,
-                DefaultCellStyle =
-                {
-                    SelectionBackColor = SystemColors.Window,
-                    SelectionForeColor = SystemColors.ControlText
-                }
+                Height = cmbLocation.Height + 20,
+                FlowDirection = FlowDirection.LeftToRight,
+                Padding = new Padding(10, 10, 10, 2),
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink
             };
+            locationPanel.Controls.Add(lblLocation);
+            locationPanel.Controls.Add(cmbLocation);
 
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "matchnumber", HeaderText = "Match #", ReadOnly = true });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "date", HeaderText = "Date", ReadOnly = true });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player1", HeaderText = "Player 1", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player2", HeaderText = "Player 2", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player3", HeaderText = "Player 3", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player4", HeaderText = "Player 4", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
-            dgv.Columns.Add(new DataGridViewButtonColumn { Name = "playedBtn", HeaderText = "Played", Text = "Played", UseColumnTextForButtonValue = true });
-            dgv.Columns["date"].Visible = false; // Hide the date column
-            dgv.Columns["matchnumber"].ReadOnly = true; // Ensure matchnumber is always read-only
-            dgv.CellClick += Dgv_CellClick;
-            dgv.CellValueChanged += Dgv_CellValueChanged;
-            dgv.CurrentCellDirtyStateChanged += (s, e) =>
-            {
-                if (dgv.IsCurrentCellDirty)
-                    dgv.CommitEdit(DataGridViewDataErrorContexts.Commit);
-            };
-            Controls.Add(dgv);
-
-            // Panel for buttons
+            // Button panel
             var buttonPanel = new Panel
             {
                 Dock = DockStyle.Top,
@@ -124,7 +146,9 @@ namespace SignupSheet
                 Height = 30,
                 Width = 150,
                 Margin = new Padding(0, 0, 10, 0),
-                Dock = DockStyle.Left
+                Dock = DockStyle.Left,
+                Visible = false,
+                Enabled = false
             };
             btnAddMatch.Click += BtnAddMatch_Click;
 
@@ -134,7 +158,9 @@ namespace SignupSheet
                 Height = 30,
                 Width = 100,
                 Margin = new Padding(10, 0, 0, 0),
-                Dock = DockStyle.Right
+                Dock = DockStyle.Right,
+                Visible = false,
+                Enabled = false
             };
             btnClear.Click += BtnClear_Click;
 
@@ -145,32 +171,95 @@ namespace SignupSheet
                 Width = 180,
                 Margin = new Padding(10, 0, 10, 0),
                 Dock = DockStyle.None,
-                Anchor = AnchorStyles.Top
+                Anchor = AnchorStyles.Top,
+                Visible = false,
+                Enabled = false
             };
             btnClearPlayed.Click += BtnClearPlayed_Click;
 
             buttonPanel.Controls.Add(btnAddMatch);
             buttonPanel.Controls.Add(btnClear);
             buttonPanel.Controls.Add(btnClearPlayed);
-            Controls.Add(buttonPanel);
 
-            // Center the button after the panel is added and sized
             buttonPanel.Layout += (s, e) =>
             {
                 btnClearPlayed.Left = (buttonPanel.ClientSize.Width - btnClearPlayed.Width) / 2;
                 btnClearPlayed.Top = (buttonPanel.ClientSize.Height - btnClearPlayed.Height) / 2;
             };
+
+            // DataGridView
+            dgv = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                MultiSelect = false,
+                DefaultCellStyle =
+                {
+                    SelectionBackColor = SystemColors.Window,
+                    SelectionForeColor = SystemColors.ControlText
+                },
+                Visible = false,
+                Enabled = false
+            };
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "matchnumber", HeaderText = "Match #", ReadOnly = true });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "date", HeaderText = "Date", ReadOnly = true });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player1", HeaderText = "Player 1", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player2", HeaderText = "Player 2", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player3", HeaderText = "Player 3", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player4", HeaderText = "Player 4", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
+            dgv.Columns.Add(new DataGridViewButtonColumn { Name = "playedBtn", HeaderText = "Played", Text = "Played", UseColumnTextForButtonValue = true });
+            dgv.Columns["date"].Visible = false;
+            dgv.Columns["matchnumber"].ReadOnly = true;
+            dgv.CellClick += Dgv_CellClick;
+            dgv.CellValueChanged += Dgv_CellValueChanged;
+            dgv.CurrentCellDirtyStateChanged += (s, e) =>
+            {
+                if (dgv.IsCurrentCellDirty)
+                    dgv.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            };
+
+            // Add controls in the correct order: locationPanel, buttonPanel, dgv
+            Controls.Add(dgv);
+            Controls.Add(buttonPanel);
+            Controls.Add(locationPanel);
+        }
+
+        private void CmbLocation_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            // Commit any pending edits before changing location
+            if (dgv.IsCurrentCellInEditMode)
+            {
+                dgv.EndEdit();
+            }
+            // Optionally, force validation to trigger CellValueChanged
+            dgv.CurrentCell = null;
+
+            bool locationSelected = cmbLocation.SelectedIndex >= 0;
+            btnAddMatch.Visible = locationSelected;
+            btnAddMatch.Enabled = locationSelected;
+            btnClear.Visible = locationSelected;
+            btnClear.Enabled = locationSelected;
+            btnClearPlayed.Visible = locationSelected;
+            btnClearPlayed.Enabled = locationSelected;
+            dgv.Visible = locationSelected;
+            dgv.Enabled = locationSelected;
+            LoadMatches();
         }
 
         private void LoadMatches()
         {
             dgv.Rows.Clear();
+            if (cmbLocation == null || cmbLocation.SelectedIndex < 0)
+                return;
+
+            string selectedLocation = cmbLocation.SelectedItem.ToString();
             using var conn = new SqliteConnection(connectionString);
             conn.Open();
-            string sql = "SELECT * FROM Matches WHERE cleared IS NULL OR cleared = 0 ORDER BY matchid";
+            string sql = "SELECT * FROM Matches WHERE (cleared IS NULL OR cleared = 0) AND Location = @location ORDER BY matchid";
             using var cmd = new SqliteCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@location", selectedLocation);
             using var reader = cmd.ExecuteReader();
-
             while (reader.Read())
             {
                 int idx = dgv.Rows.Add(
@@ -182,44 +271,45 @@ namespace SignupSheet
                     reader["player4"],
                     "Played"
                 );
-
                 if (reader["played"] != DBNull.Value && Convert.ToInt32(reader["played"]) == 1)
                 {
                     MarkRowAsPlayed(dgv.Rows[idx]);
                 }
             }
-
             if (dgv.Columns.Contains("matchnumber"))
-                dgv.Columns["matchnumber"].ReadOnly = true; // Ensure matchnumber is always read-only after loading data
+                dgv.Columns["matchnumber"].ReadOnly = true;
         }
 
         private void BtnAddMatch_Click(object sender, EventArgs e)
         {
+            if (cmbLocation.SelectedIndex < 0)
+                return;
+
             string date = DateTime.Now.ToString("yyyy-MM-dd");
             int nextMatchNumber = 1;
+            string selectedLocation = cmbLocation.SelectedItem.ToString();
             using (var conn = new SqliteConnection(connectionString))
             {
                 conn.Open();
-                string getMaxSql = "SELECT MAX(matchnumber) FROM Matches WHERE date = @date";
+                string getMaxSql = "SELECT MAX(matchnumber) FROM Matches WHERE date = @date AND Location = @location";
                 using (var getMaxCmd = new SqliteCommand(getMaxSql, conn))
                 {
                     getMaxCmd.Parameters.AddWithValue("@date", date);
+                    getMaxCmd.Parameters.AddWithValue("@location", selectedLocation);
                     var result = getMaxCmd.ExecuteScalar();
                     if (result != DBNull.Value && result != null)
                         nextMatchNumber = Convert.ToInt32(result) + 1;
                 }
-
-                string insertSql = "INSERT INTO Matches (date, matchnumber, played, cleared) VALUES (@date, @matchnumber, 0, 0)";
+                string insertSql = "INSERT INTO Matches (date, matchnumber, played, cleared, Location) VALUES (@date, @matchnumber, 0, 0, @location)";
                 using (var insertCmd = new SqliteCommand(insertSql, conn))
                 {
                     insertCmd.Parameters.AddWithValue("@date", date);
                     insertCmd.Parameters.AddWithValue("@matchnumber", nextMatchNumber);
+                    insertCmd.Parameters.AddWithValue("@location", selectedLocation);
                     insertCmd.ExecuteNonQuery();
                 }
             }
             LoadMatches();
-
-            // Focus player1 cell in the new row (newest row is at the bottom)
             if (dgv.Rows.Count > 0)
             {
                 var newRow = dgv.Rows[dgv.Rows.Count - 1];
@@ -277,14 +367,13 @@ namespace SignupSheet
                         matchid = Convert.ToInt32(result);
                 }
             }
-
             if (matchid == -1) return;
 
             string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
             using (var conn = new SqliteConnection(connectionString))
             {
                 conn.Open();
-                string sql = @"UPDATE Matches SET played = 1,
+                string sql = @"UPDATE Matches SET played = 1, 
                     playedtimestamp = @now,
                     player1timestamp = COALESCE(player1timestamp, @now),
                     player2timestamp = COALESCE(player2timestamp, @now),
@@ -321,16 +410,20 @@ namespace SignupSheet
 
             int matchnumber = Convert.ToInt32(row.Cells["matchnumber"].Value);
             string date = row.Cells["date"].Value.ToString();
+            if (cmbLocation.SelectedIndex < 0)
+                return;
+            string selectedLocation = cmbLocation.SelectedItem.ToString();
 
             int matchid = -1;
             using (var conn = new SqliteConnection(connectionString))
             {
                 conn.Open();
-                string sql = "SELECT matchid FROM Matches WHERE date = @date AND matchnumber = @matchnumber";
+                string sql = "SELECT matchid FROM Matches WHERE date = @date AND matchnumber = @matchnumber and Location = @location";
                 using (var cmd = new SqliteCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@date", date);
                     cmd.Parameters.AddWithValue("@matchnumber", matchnumber);
+                    cmd.Parameters.AddWithValue("@location", selectedLocation);
                     var result = cmd.ExecuteScalar();
                     if (result != null && result != DBNull.Value)
                         matchid = Convert.ToInt32(result);
@@ -354,7 +447,6 @@ namespace SignupSheet
                             timestampValues[i] = reader.IsDBNull(i) ? null : reader.GetString(i);
                     }
                 }
-
                 string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                 for (int i = 0; i < 4; i++)
                 {
@@ -364,7 +456,6 @@ namespace SignupSheet
                         timestampValues[i] = now;
                     }
                 }
-
                 string sql = @"UPDATE Matches SET player1 = @p1, player2 = @p2, player3 = @p3, player4 = @p4,
                     player1timestamp = @t1, player2timestamp = @t2, player3timestamp = @t3, player4timestamp = @t4
                     WHERE matchid = @matchid";
