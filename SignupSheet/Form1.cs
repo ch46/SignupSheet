@@ -1,8 +1,4 @@
-using System;
-using System.Data;
 using Microsoft.Data.Sqlite;
-using System.Drawing;
-using System.Windows.Forms;
 
 namespace SignupSheet
 {
@@ -13,6 +9,7 @@ namespace SignupSheet
         private DataGridView dgv;
         private Button btnAddMatch;
         private Button btnClear;
+        private Button btnClearPlayed; // Add this field to your class
 
         public Form1()
         {
@@ -35,6 +32,7 @@ namespace SignupSheet
                 bool needsRecreate = false;
                 bool hasPlayedTimestamp = false;
                 bool hasClearedTimestamp = false;
+                bool hasMatchNumber = false;
                 while (reader.Read())
                 {
                     if (reader["name"].ToString() == "matchid" && reader["type"].ToString().ToUpper() != "INTEGER")
@@ -45,29 +43,35 @@ namespace SignupSheet
                         hasPlayedTimestamp = true;
                     if (reader["name"].ToString() == "clearedtimestamp")
                         hasClearedTimestamp = true;
+                    if (reader["name"].ToString() == "matchnumber")
+                        hasMatchNumber = true;
                 }
-                if (needsRecreate || !hasPlayedTimestamp || !hasClearedTimestamp)
+
+                if (needsRecreate || !hasPlayedTimestamp || !hasClearedTimestamp || !hasMatchNumber)
                 {
                     using var dropCmd = new SqliteCommand("DROP TABLE IF EXISTS Matches;", conn);
                     dropCmd.ExecuteNonQuery();
                 }
             }
+
             string sql = @"CREATE TABLE IF NOT EXISTS Matches (
                 matchid INTEGER PRIMARY KEY AUTOINCREMENT,
                 date DATE NOT NULL,
+                matchnumber INTEGER NOT NULL,
                 player1 TEXT,
-                player2 TEXT,
-                player3 TEXT,
-                player4 TEXT,
                 player1timestamp TEXT,
+                player2 TEXT,
                 player2timestamp TEXT,
+                player3 TEXT,
                 player3timestamp TEXT,
+                player4 TEXT,
                 player4timestamp TEXT,
                 played INTEGER,
                 playedtimestamp TEXT,
                 cleared INTEGER,
                 clearedtimestamp TEXT
             );";
+
             using var cmd = new SqliteCommand(sql, conn);
             cmd.ExecuteNonQuery();
         }
@@ -87,7 +91,8 @@ namespace SignupSheet
                     SelectionForeColor = SystemColors.ControlText
                 }
             };
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "matchid", HeaderText = "Match ID", ReadOnly = true });
+
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "matchnumber", HeaderText = "Match #", ReadOnly = true });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "date", HeaderText = "Date", ReadOnly = true });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player1", HeaderText = "Player 1", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player2", HeaderText = "Player 2", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
@@ -95,7 +100,7 @@ namespace SignupSheet
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player4", HeaderText = "Player 4", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
             dgv.Columns.Add(new DataGridViewButtonColumn { Name = "playedBtn", HeaderText = "Played", Text = "Played", UseColumnTextForButtonValue = true });
             dgv.Columns["date"].Visible = false; // Hide the date column
-            dgv.Columns["matchid"].ReadOnly = true; // Ensure matchid is always read-only
+            dgv.Columns["matchnumber"].ReadOnly = true; // Ensure matchnumber is always read-only
             dgv.CellClick += Dgv_CellClick;
             dgv.CellValueChanged += Dgv_CellValueChanged;
             dgv.CurrentCellDirtyStateChanged += (s, e) =>
@@ -133,9 +138,28 @@ namespace SignupSheet
             };
             btnClear.Click += BtnClear_Click;
 
+            btnClearPlayed = new Button
+            {
+                Text = "Clear played matches",
+                Height = 30,
+                Width = 180,
+                Margin = new Padding(10, 0, 10, 0),
+                Dock = DockStyle.None,
+                Anchor = AnchorStyles.Top
+            };
+            btnClearPlayed.Click += BtnClearPlayed_Click;
+
             buttonPanel.Controls.Add(btnAddMatch);
             buttonPanel.Controls.Add(btnClear);
+            buttonPanel.Controls.Add(btnClearPlayed);
             Controls.Add(buttonPanel);
+
+            // Center the button after the panel is added and sized
+            buttonPanel.Layout += (s, e) =>
+            {
+                btnClearPlayed.Left = (buttonPanel.ClientSize.Width - btnClearPlayed.Width) / 2;
+                btnClearPlayed.Top = (buttonPanel.ClientSize.Height - btnClearPlayed.Height) / 2;
+            };
         }
 
         private void LoadMatches()
@@ -143,13 +167,14 @@ namespace SignupSheet
             dgv.Rows.Clear();
             using var conn = new SqliteConnection(connectionString);
             conn.Open();
-            string sql = "SELECT * FROM Matches WHERE cleared IS NULL OR cleared = 0 ORDER BY date DESC";
+            string sql = "SELECT * FROM Matches WHERE cleared IS NULL OR cleared = 0 ORDER BY matchid";
             using var cmd = new SqliteCommand(sql, conn);
             using var reader = cmd.ExecuteReader();
+
             while (reader.Read())
             {
                 int idx = dgv.Rows.Add(
-                    reader["matchid"],
+                    reader["matchnumber"],
                     Convert.ToDateTime(reader["date"]).ToString("yyyy-MM-dd"),
                     reader["player1"],
                     reader["player2"],
@@ -157,25 +182,43 @@ namespace SignupSheet
                     reader["player4"],
                     "Played"
                 );
+
                 if (reader["played"] != DBNull.Value && Convert.ToInt32(reader["played"]) == 1)
                 {
                     MarkRowAsPlayed(dgv.Rows[idx]);
                 }
             }
-            if (dgv.Columns.Contains("matchid"))
-                dgv.Columns["matchid"].ReadOnly = true; // Ensure matchid is always read-only after loading data
+
+            if (dgv.Columns.Contains("matchnumber"))
+                dgv.Columns["matchnumber"].ReadOnly = true; // Ensure matchnumber is always read-only after loading data
         }
 
         private void BtnAddMatch_Click(object sender, EventArgs e)
         {
             string date = DateTime.Now.ToString("yyyy-MM-dd");
-            using var conn = new SqliteConnection(connectionString);
-            conn.Open();
-            string sql = "INSERT INTO Matches (date, played, cleared) VALUES (@date, 0, 0)";
-            using var cmd = new SqliteCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@date", date);
-            cmd.ExecuteNonQuery();
+            int nextMatchNumber = 1;
+            using (var conn = new SqliteConnection(connectionString))
+            {
+                conn.Open();
+                string getMaxSql = "SELECT MAX(matchnumber) FROM Matches WHERE date = @date";
+                using (var getMaxCmd = new SqliteCommand(getMaxSql, conn))
+                {
+                    getMaxCmd.Parameters.AddWithValue("@date", date);
+                    var result = getMaxCmd.ExecuteScalar();
+                    if (result != DBNull.Value && result != null)
+                        nextMatchNumber = Convert.ToInt32(result) + 1;
+                }
+
+                string insertSql = "INSERT INTO Matches (date, matchnumber, played, cleared) VALUES (@date, @matchnumber, 0, 0)";
+                using (var insertCmd = new SqliteCommand(insertSql, conn))
+                {
+                    insertCmd.Parameters.AddWithValue("@date", date);
+                    insertCmd.Parameters.AddWithValue("@matchnumber", nextMatchNumber);
+                    insertCmd.ExecuteNonQuery();
+                }
+            }
             LoadMatches();
+
             // Focus player1 cell in the new row (newest row is at the bottom)
             if (dgv.Rows.Count > 0)
             {
@@ -197,6 +240,18 @@ namespace SignupSheet
             dgv.Rows.Clear();
         }
 
+        private void BtnClearPlayed_Click(object sender, EventArgs e) // Add this method to your class
+        {
+            string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            using var conn = new SqliteConnection(connectionString);
+            conn.Open();
+            string sql = "UPDATE Matches SET cleared = 1, clearedtimestamp = @now WHERE played = 1 AND (cleared IS NULL OR cleared = 0)";
+            using var cmd = new SqliteCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@now", now);
+            cmd.ExecuteNonQuery();
+            LoadMatches();
+        }
+
         private void Dgv_CellClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0 || e.ColumnIndex != dgv.Columns["playedBtn"].Index)
@@ -204,23 +259,45 @@ namespace SignupSheet
             var row = dgv.Rows[e.RowIndex];
             if (row.DefaultCellStyle.Font != null && row.DefaultCellStyle.Font.Strikeout)
                 return; // already played
-            int matchid = Convert.ToInt32(row.Cells["matchid"].Value);
+
+            int matchnumber = Convert.ToInt32(row.Cells["matchnumber"].Value);
             string date = row.Cells["date"].Value.ToString();
+
+            int matchid = -1;
+            using (var conn = new SqliteConnection(connectionString))
+            {
+                conn.Open();
+                string sql = "SELECT matchid FROM Matches WHERE date = @date AND matchnumber = @matchnumber";
+                using (var cmd = new SqliteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@date", date);
+                    cmd.Parameters.AddWithValue("@matchnumber", matchnumber);
+                    var result = cmd.ExecuteScalar();
+                    if (result != null && result != DBNull.Value)
+                        matchid = Convert.ToInt32(result);
+                }
+            }
+
+            if (matchid == -1) return;
+
             string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            using var conn = new SqliteConnection(connectionString);
-            conn.Open();
-            string sql = @"UPDATE Matches SET played = 1, 
-                playedtimestamp = @now,
-                player1timestamp = COALESCE(player1timestamp, @now),
-                player2timestamp = COALESCE(player2timestamp, @now),
-                player3timestamp = COALESCE(player3timestamp, @now),
-                player4timestamp = COALESCE(player4timestamp, @now)
-                WHERE matchid = @matchid AND date = @date";
-            using var cmd = new SqliteCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@now", now);
-            cmd.Parameters.AddWithValue("@matchid", matchid);
-            cmd.Parameters.AddWithValue("@date", date);
-            cmd.ExecuteNonQuery();
+            using (var conn = new SqliteConnection(connectionString))
+            {
+                conn.Open();
+                string sql = @"UPDATE Matches SET played = 1,
+                    playedtimestamp = @now,
+                    player1timestamp = COALESCE(player1timestamp, @now),
+                    player2timestamp = COALESCE(player2timestamp, @now),
+                    player3timestamp = COALESCE(player3timestamp, @now),
+                    player4timestamp = COALESCE(player4timestamp, @now)
+                    WHERE matchid = @matchid";
+                using (var cmd = new SqliteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@now", now);
+                    cmd.Parameters.AddWithValue("@matchid", matchid);
+                    cmd.ExecuteNonQuery();
+                }
+            }
             MarkRowAsPlayed(row);
         }
 
@@ -241,54 +318,68 @@ namespace SignupSheet
             var row = dgv.Rows[e.RowIndex];
             if (row.DefaultCellStyle.Font != null && row.DefaultCellStyle.Font.Strikeout)
                 return; // played, do not update
-            int matchid = Convert.ToInt32(row.Cells["matchid"].Value);
+
+            int matchnumber = Convert.ToInt32(row.Cells["matchnumber"].Value);
             string date = row.Cells["date"].Value.ToString();
+
+            int matchid = -1;
+            using (var conn = new SqliteConnection(connectionString))
+            {
+                conn.Open();
+                string sql = "SELECT matchid FROM Matches WHERE date = @date AND matchnumber = @matchnumber";
+                using (var cmd = new SqliteCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@date", date);
+                    cmd.Parameters.AddWithValue("@matchnumber", matchnumber);
+                    var result = cmd.ExecuteScalar();
+                    if (result != null && result != DBNull.Value)
+                        matchid = Convert.ToInt32(result);
+                }
+            }
+            if (matchid == -1) return;
+
             string[] players = new string[4];
-            string[] timestampCols = { "player1timestamp", "player2timestamp", "player3timestamp", "player4timestamp" };
-            bool updateTimestamps = false;
             string[] timestampValues = new string[4];
-            using var conn = new SqliteConnection(connectionString);
-            conn.Open();
-            // Get current timestamps from DB
-            string selectSql = "SELECT player1timestamp, player2timestamp, player3timestamp, player4timestamp FROM Matches WHERE matchid = @matchid AND date = @date";
-            using (var selectCmd = new SqliteCommand(selectSql, conn))
+            using (var conn = new SqliteConnection(connectionString))
             {
-                selectCmd.Parameters.AddWithValue("@matchid", matchid);
-                selectCmd.Parameters.AddWithValue("@date", date);
-                using var reader = selectCmd.ExecuteReader();
-                if (reader.Read())
+                conn.Open();
+                string selectSql = "SELECT player1timestamp, player2timestamp, player3timestamp, player4timestamp FROM Matches WHERE matchid = @matchid";
+                using (var selectCmd = new SqliteCommand(selectSql, conn))
                 {
-                    for (int i = 0; i < 4; i++)
-                        timestampValues[i] = reader.IsDBNull(i) ? null : reader.GetString(i);
+                    selectCmd.Parameters.AddWithValue("@matchid", matchid);
+                    using var reader = selectCmd.ExecuteReader();
+                    if (reader.Read())
+                    {
+                        for (int i = 0; i < 4; i++)
+                            timestampValues[i] = reader.IsDBNull(i) ? null : reader.GetString(i);
+                    }
                 }
-            }
-            string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            for (int i = 0; i < 4; i++)
-            {
-                players[i] = row.Cells[$"player{i + 1}"].Value?.ToString() ?? "";
-                // If player name is not empty and timestamp is null, set timestamp
-                if (!string.IsNullOrWhiteSpace(players[i]) && string.IsNullOrWhiteSpace(timestampValues[i]))
+
+                string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                for (int i = 0; i < 4; i++)
                 {
-                    timestampValues[i] = now;
-                    updateTimestamps = true;
+                    players[i] = row.Cells[$"player{i + 1}"].Value?.ToString() ?? "";
+                    if (!string.IsNullOrWhiteSpace(players[i]) && string.IsNullOrWhiteSpace(timestampValues[i]))
+                    {
+                        timestampValues[i] = now;
+                    }
                 }
+
+                string sql = @"UPDATE Matches SET player1 = @p1, player2 = @p2, player3 = @p3, player4 = @p4,
+                    player1timestamp = @t1, player2timestamp = @t2, player3timestamp = @t3, player4timestamp = @t4
+                    WHERE matchid = @matchid";
+                using var cmd = new SqliteCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@p1", players[0]);
+                cmd.Parameters.AddWithValue("@p2", players[1]);
+                cmd.Parameters.AddWithValue("@p3", players[2]);
+                cmd.Parameters.AddWithValue("@p4", players[3]);
+                cmd.Parameters.AddWithValue("@t1", (object)timestampValues[0] ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@t2", (object)timestampValues[1] ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@t3", (object)timestampValues[2] ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@t4", (object)timestampValues[3] ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@matchid", matchid);
+                cmd.ExecuteNonQuery();
             }
-            // Update player names and timestamps
-            string sql = @"UPDATE Matches SET player1 = @p1, player2 = @p2, player3 = @p3, player4 = @p4,
-                player1timestamp = @t1, player2timestamp = @t2, player3timestamp = @t3, player4timestamp = @t4
-                WHERE matchid = @matchid AND date = @date";
-            using var cmd = new SqliteCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@p1", players[0]);
-            cmd.Parameters.AddWithValue("@p2", players[1]);
-            cmd.Parameters.AddWithValue("@p3", players[2]);
-            cmd.Parameters.AddWithValue("@p4", players[3]);
-            cmd.Parameters.AddWithValue("@t1", (object)timestampValues[0] ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@t2", (object)timestampValues[1] ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@t3", (object)timestampValues[2] ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@t4", (object)timestampValues[3] ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@matchid", matchid);
-            cmd.Parameters.AddWithValue("@date", date);
-            cmd.ExecuteNonQuery();
         }
     }
 }
