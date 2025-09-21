@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using System.Windows.Forms;
 
 namespace SignupSheet
 {
@@ -87,21 +88,24 @@ namespace SignupSheet
 
         private void InitializeUI()
         {
-            // Label for location
+            this.WindowState = FormWindowState.Maximized;
+
             var lblLocation = new Label
             {
                 Text = "Location: ",
                 AutoSize = true,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Margin = new Padding(0, 6, 8, 0) // right margin for spacing
+                Margin = new Padding(0, 6, 8, 0),
+                Font = new Font(FontFamily.GenericSerif, 20)
             };
 
             // ComboBox for location selection
             cmbLocation = new ComboBox
             {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Height = 30,
-                Margin = new Padding(0, 4, 0, 0)
+                DropDownStyle = ComboBoxStyle.DropDownList,,
+                Margin = new Padding(0, 4, 0, 0),
+                Size = new Size(20, 20),
+                Font = new Font(FontFamily.GenericSerif, 20)
             };
             cmbLocation.Items.AddRange(Locations);
             cmbLocation.SelectedIndexChanged += CmbLocation_SelectedIndexChanged;
@@ -136,15 +140,14 @@ namespace SignupSheet
             var buttonPanel = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 50,
                 Padding = new Padding(10, 10, 10, 10)
             };
 
             btnAddMatch = new Button
             {
                 Text = "Add a new match",
-                Height = 30,
-                Width = 150,
+                AutoSize = true,
+                Font = new Font(FontFamily.GenericSerif, 20),
                 Margin = new Padding(0, 0, 10, 0),
                 Dock = DockStyle.Left,
                 Visible = false,
@@ -155,8 +158,8 @@ namespace SignupSheet
             btnClear = new Button
             {
                 Text = "Clear",
-                Height = 30,
-                Width = 100,
+                AutoSize = true,
+                Font = new Font(FontFamily.GenericSerif, 20),
                 Margin = new Padding(10, 0, 0, 0),
                 Dock = DockStyle.Right,
                 Visible = false,
@@ -167,8 +170,8 @@ namespace SignupSheet
             btnClearPlayed = new Button
             {
                 Text = "Clear played matches",
-                Height = 30,
-                Width = 180,
+                AutoSize = true,
+                Font = new Font(FontFamily.GenericSerif, 20),
                 Margin = new Padding(10, 0, 10, 0),
                 Dock = DockStyle.None,
                 Anchor = AnchorStyles.Top,
@@ -194,6 +197,8 @@ namespace SignupSheet
                 AllowUserToAddRows = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 MultiSelect = false,
+                Font = new Font(FontFamily.GenericSerif, 20),
+                ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
                 DefaultCellStyle =
                 {
                     SelectionBackColor = SystemColors.Window,
@@ -202,6 +207,7 @@ namespace SignupSheet
                 Visible = false,
                 Enabled = false
             };
+            dgv.RowTemplate.Height = 50;
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "matchnumber", HeaderText = "Match #", ReadOnly = true });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "date", HeaderText = "Date", ReadOnly = true });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player1", HeaderText = "Player 1", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
