@@ -321,11 +321,13 @@ namespace SignupSheet
         private void BtnClear_Click(object sender, EventArgs e)
         {
             string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            string location = cmbLocation.SelectedItem.ToString();
             using var conn = new SqliteConnection(connectionString);
             conn.Open();
-            string sql = "UPDATE Matches SET cleared = 1, clearedtimestamp = @now WHERE cleared IS NULL OR cleared = 0";
+            string sql = "UPDATE Matches SET cleared = 1, clearedtimestamp = @now WHERE (cleared IS NULL OR cleared = 0) AND location = @location";
             using var cmd = new SqliteCommand(sql, conn);
             cmd.Parameters.AddWithValue("@now", now);
+            cmd.Parameters.AddWithValue("@location", location);
             cmd.ExecuteNonQuery();
             dgv.Rows.Clear();
         }
@@ -451,6 +453,21 @@ namespace SignupSheet
                 for (int i = 0; i < 4; i++)
                 {
                     players[i] = row.Cells[$"player{i + 1}"].Value?.ToString() ?? "";
+                    // check if this player's name is changed.  if so, set a flag to indicate it is changed.
+                    string originalName = "";
+                    string getNameSql = $"SELECT player{i + 1} FROM Matches WHERE matchid = @matchid";
+                    using (var getNameCmd = new SqliteCommand(getNameSql, conn))
+                    {
+                        getNameCmd.Parameters.AddWithValue("@matchid", matchid);
+                        var result = getNameCmd.ExecuteScalar();
+                        if (result != null && result != DBNull.Value)
+                            originalName = result.ToString();
+                    }
+                    if (players[i] != originalName)
+                    {
+                        timestampValues[i] = now;
+                    }
+
                     if (!string.IsNullOrWhiteSpace(players[i]) && string.IsNullOrWhiteSpace(timestampValues[i]))
                     {
                         timestampValues[i] = now;
