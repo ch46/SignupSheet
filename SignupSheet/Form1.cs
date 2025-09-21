@@ -102,7 +102,7 @@ namespace SignupSheet
             // ComboBox for location selection
             cmbLocation = new ComboBox
             {
-                DropDownStyle = ComboBoxStyle.DropDownList,,
+                DropDownStyle = ComboBoxStyle.DropDownList,
                 Margin = new Padding(0, 4, 0, 0),
                 Size = new Size(20, 20),
                 Font = new Font(FontFamily.GenericSerif, 20)
@@ -208,7 +208,7 @@ namespace SignupSheet
                 Enabled = false
             };
             dgv.RowTemplate.Height = 50;
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "matchnumber", HeaderText = "Match #", ReadOnly = true });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "matchnumber", HeaderText = "Match #", ReadOnly = true, MinimumWidth = 200 });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "date", HeaderText = "Date", ReadOnly = true });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player1", HeaderText = "Player 1", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player2", HeaderText = "Player 2", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
