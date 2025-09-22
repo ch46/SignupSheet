@@ -225,11 +225,6 @@ namespace SignupSheet
                 MultiSelect = false,
                 Font = new Font(FontFamily.GenericSerif, 20),
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
-                DefaultCellStyle =
-                {
-                    SelectionBackColor = SystemColors.Window,
-                    SelectionForeColor = SystemColors.ControlText
-                },
                 Visible = false,
                 Enabled = false
             };
@@ -240,7 +235,14 @@ namespace SignupSheet
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player2", HeaderText = "Player 2", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player3", HeaderText = "Player 3", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "player4", HeaderText = "Player 4", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 80 });
-            dgv.Columns.Add(new DataGridViewButtonColumn { Name = "playedBtn", HeaderText = "Played", Text = "Played", UseColumnTextForButtonValue = true });
+            var playedBtnColumn = new DataGridViewTextBoxColumn { Name = "playedBtn", HeaderText = "Played" };
+            playedBtnColumn.DefaultCellStyle.BackColor = Color.White;
+            playedBtnColumn.DefaultCellStyle.ForeColor = Color.Black;
+            playedBtnColumn.DefaultCellStyle.SelectionBackColor = Color.White;
+            playedBtnColumn.DefaultCellStyle.SelectionForeColor = Color.Black;
+            playedBtnColumn.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            playedBtnColumn.ReadOnly = true;
+            dgv.Columns.Add(playedBtnColumn);
             dgv.Columns["date"].Visible = false;
             dgv.Columns["matchnumber"].ReadOnly = true;
             dgv.CellClick += Dgv_CellClick;
@@ -286,11 +288,13 @@ namespace SignupSheet
                 return;
 
             string selectedLocation = cmbLocation.SelectedItem.ToString();
+            string currentDate = DateTime.Now.ToString("yyyy-MM-dd");
             using var conn = new SqliteConnection(connectionString);
             conn.Open();
-            string sql = "SELECT * FROM Matches WHERE (cleared IS NULL OR cleared = 0) AND Location = @location ORDER BY matchid";
+            string sql = "SELECT * FROM Matches WHERE (cleared IS NULL OR cleared = 0) AND Location = @location AND date = @date ORDER BY matchid";
             using var cmd = new SqliteCommand(sql, conn);
             cmd.Parameters.AddWithValue("@location", selectedLocation);
+            cmd.Parameters.AddWithValue("@date", currentDate);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
@@ -303,6 +307,14 @@ namespace SignupSheet
                     reader["player4"],
                     "Played"
                 );
+                
+                // Set default white background for played button
+                var playedBtnCell = dgv.Rows[idx].Cells["playedBtn"];
+                playedBtnCell.Style.BackColor = Color.White;
+                playedBtnCell.Style.ForeColor = Color.Black;
+                playedBtnCell.Style.SelectionBackColor = Color.White;
+                playedBtnCell.Style.SelectionForeColor = Color.Black;
+                
                 if (reader["played"] != DBNull.Value && Convert.ToInt32(reader["played"]) == 1)
                 {
                     MarkRowAsPlayed(dgv.Rows[idx]);
@@ -431,12 +443,14 @@ namespace SignupSheet
         private void MarkRowAsPlayed(DataGridViewRow row)
         {
             row.DefaultCellStyle.Font = new Font(dgv.Font, FontStyle.Strikeout);
-            row.DefaultCellStyle.BackColor = Color.LightGray;
             foreach (DataGridViewCell cell in row.Cells)
             {
                 if (cell.OwningColumn.Name.StartsWith("player"))
+                {
                     cell.ReadOnly = true;
-                // Also set Played button cell color to grey if this is the playedBtn column
+                    cell.Style.BackColor = Color.LightGray;
+                }
+                // Set Played button cell color to grey if this is the playedBtn column
                 if (cell.OwningColumn.Name == "playedBtn")
                 {
                     cell.Style.BackColor = Color.LightGray;
