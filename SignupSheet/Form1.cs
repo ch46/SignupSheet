@@ -143,42 +143,68 @@ namespace SignupSheet
                 Padding = new Padding(10, 10, 10, 10)
             };
 
+            // Set a fixed height for all buttons
+            int fixedButtonHeight = 60;
+
             btnAddMatch = new Button
             {
                 Text = "Add a new match",
-                AutoSize = true,
+                AutoSize = false,
                 Font = new Font(FontFamily.GenericSerif, 20),
                 Margin = new Padding(0, 0, 10, 0),
                 Dock = DockStyle.Left,
                 Visible = false,
-                Enabled = false
+                Enabled = false,
+                Height = fixedButtonHeight,
+                Width = 220,
+                MinimumSize = new Size(220, fixedButtonHeight),
+                MaximumSize = new Size(220, fixedButtonHeight),
+                TextAlign = ContentAlignment.MiddleCenter,
+                AutoEllipsis = true,
+                FlatStyle = FlatStyle.Standard
             };
             btnAddMatch.Click += BtnAddMatch_Click;
 
             btnClear = new Button
             {
                 Text = "Clear",
-                AutoSize = true,
+                AutoSize = false,
                 Font = new Font(FontFamily.GenericSerif, 20),
                 Margin = new Padding(10, 0, 0, 0),
                 Dock = DockStyle.Right,
                 Visible = false,
-                Enabled = false
+                Enabled = false,
+                Height = fixedButtonHeight,
+                Width = 120,
+                MinimumSize = new Size(120, fixedButtonHeight),
+                MaximumSize = new Size(120, fixedButtonHeight),
+                TextAlign = ContentAlignment.MiddleCenter,
+                AutoEllipsis = true,
+                FlatStyle = FlatStyle.Standard
             };
             btnClear.Click += BtnClear_Click;
 
             btnClearPlayed = new Button
             {
                 Text = "Clear played matches",
-                AutoSize = true,
+                AutoSize = false,
                 Font = new Font(FontFamily.GenericSerif, 20),
                 Margin = new Padding(10, 0, 10, 0),
                 Dock = DockStyle.None,
                 Anchor = AnchorStyles.Top,
                 Visible = false,
-                Enabled = false
+                Enabled = false,
+                Height = fixedButtonHeight,
+                Width = 260,
+                MinimumSize = new Size(260, fixedButtonHeight),
+                MaximumSize = new Size(260, fixedButtonHeight),
+                TextAlign = ContentAlignment.MiddleCenter,
+                AutoEllipsis = true,
+                FlatStyle = FlatStyle.Standard
             };
             btnClearPlayed.Click += BtnClearPlayed_Click;
+
+            buttonPanel.Height = fixedButtonHeight + buttonPanel.Padding.Top + buttonPanel.Padding.Bottom;
 
             buttonPanel.Controls.Add(btnAddMatch);
             buttonPanel.Controls.Add(btnClear);
@@ -396,6 +422,10 @@ namespace SignupSheet
                 }
             }
             MarkRowAsPlayed(row);
+            // Set the Played button cell color to grey
+            var playedBtnCell = row.Cells["playedBtn"];
+            playedBtnCell.Style.BackColor = Color.LightGray;
+            playedBtnCell.Style.ForeColor = Color.DarkGray;
         }
 
         private void MarkRowAsPlayed(DataGridViewRow row)
@@ -406,6 +436,12 @@ namespace SignupSheet
             {
                 if (cell.OwningColumn.Name.StartsWith("player"))
                     cell.ReadOnly = true;
+                // Also set Played button cell color to grey if this is the playedBtn column
+                if (cell.OwningColumn.Name == "playedBtn")
+                {
+                    cell.Style.BackColor = Color.LightGray;
+                    cell.Style.ForeColor = Color.DarkGray;
+                }
             }
         }
 
