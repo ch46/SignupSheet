@@ -226,7 +226,8 @@ namespace SignupSheet
                 Font = new Font(FontFamily.GenericSerif, 20),
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
                 Visible = false,
-                Enabled = false
+                Enabled = false,
+                ReadOnly = false
             };
             dgv.RowTemplate.Height = 50;
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "matchnumber", HeaderText = "Match #", ReadOnly = true, MinimumWidth = 200 });
@@ -434,15 +435,17 @@ namespace SignupSheet
                 }
             }
             MarkRowAsPlayed(row);
-            // Set the Played button cell color to grey
+            // Set the Played button cell color to grey and update text
             var playedBtnCell = row.Cells["playedBtn"];
+            playedBtnCell.Value = "Played ✓";
             playedBtnCell.Style.BackColor = Color.LightGray;
-            playedBtnCell.Style.ForeColor = Color.DarkGray;
+            playedBtnCell.Style.ForeColor = Color.Red;
         }
 
         private void MarkRowAsPlayed(DataGridViewRow row)
         {
             row.DefaultCellStyle.Font = new Font(dgv.Font, FontStyle.Strikeout);
+            row.ReadOnly = false; // Ensure the row itself is not read-only for selection
             foreach (DataGridViewCell cell in row.Cells)
             {
                 if (cell.OwningColumn.Name.StartsWith("player"))
@@ -453,8 +456,9 @@ namespace SignupSheet
                 // Set Played button cell color to grey if this is the playedBtn column
                 if (cell.OwningColumn.Name == "playedBtn")
                 {
+                    cell.Value = "Played ✓";
                     cell.Style.BackColor = Color.LightGray;
-                    cell.Style.ForeColor = Color.DarkGray;
+                    cell.Style.ForeColor = Color.Red;
                 }
             }
         }
